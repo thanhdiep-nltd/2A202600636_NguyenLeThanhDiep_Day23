@@ -22,6 +22,7 @@ class ScenarioMetric(BaseModel):
     approval_observed: bool = False
     latency_ms: int = 0
     errors: list[str] = Field(default_factory=list)
+    nodes_list: list[str] = Field(default_factory=list)
 
 
 class MetricsReport(BaseModel):
@@ -34,7 +35,9 @@ class MetricsReport(BaseModel):
     scenario_metrics: list[ScenarioMetric]
 
 
-def metric_from_state(state: dict[str, Any], expected_route: str, approval_required: bool) -> ScenarioMetric:
+def metric_from_state(
+    state: dict[str, Any], expected_route: str, approval_required: bool
+) -> ScenarioMetric:
     events = state.get("events", []) or []
     errors = state.get("errors", []) or []
     actual_route = state.get("route")
@@ -42,7 +45,9 @@ def metric_from_state(state: dict[str, Any], expected_route: str, approval_requi
     nodes = [event.get("node", "unknown") for event in events]
     retry_count = sum(1 for node in nodes if node == "retry")
     interrupt_count = sum(1 for node in nodes if node == "approval")
-    success = actual_route == expected_route and bool(state.get("final_answer") or state.get("pending_question"))
+    
+    has_answer = bool(state.get("final_answer") or state.get("pending_question"))
+    success = actual_route == expected_route and has_answer
     if approval_required:
         success = success and approval is not None
     return ScenarioMetric(
@@ -56,6 +61,7 @@ def metric_from_state(state: dict[str, Any], expected_route: str, approval_requi
         approval_required=approval_required,
         approval_observed=approval is not None,
         errors=list(errors),
+        nodes_list=nodes,
     )
 
 

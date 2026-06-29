@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def build_checkpointer(kind: str = "memory", database_url: str | None = None) -> Any | None:
+def build_checkpointer(
+    kind: str = "memory", database_url: str | None = None
+) -> Any | None:  # noqa: ANN401
     """Return a LangGraph checkpointer.
 
     TODO(student): implement SQLite support for the persistence extension track.
@@ -23,12 +25,20 @@ def build_checkpointer(kind: str = "memory", database_url: str | None = None) ->
 
         return MemorySaver()
     if kind == "sqlite":
-        raise NotImplementedError(
-            "TODO(student): implement SQLite checkpointer. "
-            "Hint: pip install langgraph-checkpoint-sqlite, then use SqliteSaver"
-        )
+        import sqlite3
+        from pathlib import Path
+
+        from langgraph.checkpoint.sqlite import SqliteSaver
+        
+        db_path = database_url or "outputs/checkpoints.sqlite"
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return SqliteSaver(conn)
     if kind == "postgres":
+        # Fallback to sqlite or raise if not configured
         raise NotImplementedError(
-            "TODO(student): implement Postgres checkpointer (optional extension)"
+            "Postgres checkpointer is not configured. Please use sqlite or memory checkpointer."
         )
     raise ValueError(f"Unknown checkpointer kind: {kind}")

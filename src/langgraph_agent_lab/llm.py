@@ -12,9 +12,10 @@ Usage in nodes:
 from __future__ import annotations
 
 import os
+from typing import Any
 
 
-def get_llm(model: str | None = None, temperature: float = 0.0):
+def get_llm(model: str | None = None, temperature: float = 0.0) -> Any:  # noqa: ANN401
     """Create an LLM client from environment configuration.
 
     Checks for API keys in this order:
@@ -26,11 +27,11 @@ def get_llm(model: str | None = None, temperature: float = 0.0):
     """
     if os.getenv("GEMINI_API_KEY"):
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
         except ImportError as exc:
             raise RuntimeError("Install: pip install langchain-google-genai") from exc
         return ChatGoogleGenerativeAI(
-            model=model or os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+            model=model or os.getenv("LLM_MODEL") or "gemini-2.5-flash",
             google_api_key=os.getenv("GEMINI_API_KEY"),
             temperature=temperature,
         )
@@ -41,17 +42,17 @@ def get_llm(model: str | None = None, temperature: float = 0.0):
         except ImportError as exc:
             raise RuntimeError("Install: pip install langchain-openai") from exc
         return ChatOpenAI(
-            model=model or os.getenv("LLM_MODEL", "gpt-4o-mini"),
+            model=model or os.getenv("LLM_MODEL") or "gpt-4o-mini",
             temperature=temperature,
         )
 
     if os.getenv("ANTHROPIC_API_KEY"):
         try:
-            from langchain_anthropic import ChatAnthropic
+            from langchain_anthropic import ChatAnthropic  # type: ignore
         except ImportError as exc:
             raise RuntimeError("Install: pip install langchain-anthropic") from exc
         return ChatAnthropic(
-            model=model or os.getenv("LLM_MODEL", "claude-sonnet-4-20250514"),
+            model=model or os.getenv("LLM_MODEL") or "claude-sonnet-4-20250514",
             temperature=temperature,
         )
 
