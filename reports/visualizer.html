@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph Agent Execution Path Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(22, 31, 48, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-glow: rgba(0, 245, 160, 0.15);
+            --accent-color: #00f5a0;
+            --secondary-accent: #00d2ff;
+            --danger-color: #ff4d6d;
+            --warning-color: #ffbe0b;
+            --node-inactive-bg: #1e293b;
+            --node-inactive-border: rgba(255, 255, 255, 0.1);
+        }
+
+        .light-mode {
+            --bg-color: #f8fafc;
+            --panel-bg: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(0, 0, 0, 0.08);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-glow: rgba(0, 180, 116, 0.1);
+            --accent-color: #00b474;
+            --secondary-accent: #0099cc;
+            --danger-color: #e63946;
+            --warning-color: #d97706;
+            --node-inactive-bg: #e2e8f0;
+            --node-inactive-border: rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            background: linear-gradient(180deg, rgba(11, 15, 25, 0.9) 0%, rgba(11, 15, 25, 0) 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(8px);
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--secondary-accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            padding: 1.5rem;
+            gap: 1.5rem;
+            height: calc(100vh - 80px);
+        }
+
+        /* Sidebar Style */
+        .sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .dropzone {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--accent-color);
+            color: var(--text-primary);
+        }
+
+        .case-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .case-item {
+            padding: 1rem;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .case-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border-color);
+        }
+
+        .case-item.active {
+            background: rgba(0, 245, 160, 0.08);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 12px rgba(0, 245, 160, 0.05);
+        }
+
+        .case-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .case-id {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: rgba(0, 245, 160, 0.15);
+            color: #00ffaa;
+            border: 1px solid rgba(0, 245, 160, 0.3);
+        }
+
+        .badge-failed {
+            background: rgba(255, 77, 109, 0.15);
+            color: #ff4d6d;
+            border: 1px solid rgba(255, 77, 109, 0.3);
+        }
+
+        .case-query {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .case-route-info {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Visualization Board Style */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .board {
+            flex: 1;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .board-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .board-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .playback-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .playback-btn:hover:not(:disabled) {
+            border-color: var(--accent-color);
+            background: rgba(0, 245, 160, 0.05);
+        }
+
+        .playback-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .step-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .graph-container {
+            flex: 1;
+            position: relative;
+            min-height: 480px;
+            padding: 2rem;
+        }
+
+        /* SVG Connection Lines */
+        .svg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            fill: none;
+            stroke: var(--node-inactive-border);
+            stroke-width: 2.5;
+            transition: all 0.3s ease;
+        }
+
+        .connection-line.active-path {
+            stroke: var(--accent-color);
+            stroke-width: 3.5;
+            stroke-dasharray: 8 4;
+            animation: dash 30s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(0, 245, 160, 0.5));
+        }
+
+        .connection-line.future-path {
+            stroke: var(--secondary-accent);
+            stroke-width: 3;
+            stroke-dasharray: 6 6;
+            opacity: 0.6;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Graph Node Styling */
+        .node {
+            position: absolute;
+            width: 100px;
+            height: 44px;
+            background-color: var(--node-inactive-bg);
+            border: 1px solid var(--node-inactive-border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .node:hover {
+            transform: scale(1.05);
+            border-color: var(--secondary-accent);
+        }
+
+        .node.active {
+            background-color: rgba(0, 245, 160, 0.1);
+            border: 2.5px solid var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-glow);
+            color: var(--accent-color);
+            transform: scale(1.08);
+        }
+
+        .node.highlighted {
+            background-color: rgba(0, 210, 255, 0.08);
+            border: 1.5px solid var(--secondary-accent);
+            color: var(--text-primary);
+        }
+
+        .node.start-node {
+            border-radius: 20px;
+            width: 70px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border: none;
+            color: white;
+        }
+
+        .node.end-node {
+            border-radius: 20px;
+            width: 70px;
+            background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
+            border: none;
+            color: white;
+        }
+
+        /* Node Step Numbers */
+        .node-step-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            color: #0b0f19;
+            font-size: 0.65rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid var(--bg-color);
+            z-index: 3;
+            animation: popIn 0.2s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
+
+        /* Bottom Detail Panel */
+        .inspector-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .inspector-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .inspector-content {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .info-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-size: 0.85rem;
+            word-break: break-word;
+            line-height: 1.4;
+        }
+
+        .error-log {
+            color: var(--danger-color);
+            font-family: monospace;
+            background: rgba(255, 77, 109, 0.05);
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 77, 109, 0.15);
+            font-size: 0.75rem;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span>LangGraph</span> Execution Visualizer</h1>
+        <div class="controls">
+            <button class="btn" id="theme-toggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                Theme Toggle
+            </button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Sidebar with scenarios -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Grading Scenarios</div>
+                <div class="dropzone" id="drop-zone">
+                    Drag & Drop <code>metrics.json</code> here or Click to select
+                    <input type="file" id="file-input" style="display: none;" accept=".json">
+                </div>
+            </div>
+            <div class="case-list" id="case-list">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Working visualizer area -->
+        <div class="workspace">
+            <!-- Stats -->
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <div class="stat-label">Total Cases</div>
+                    <div class="stat-value" id="stat-total">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Success Rate</div>
+                    <div class="stat-value" id="stat-rate" style="color: var(--accent-color);">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Nodes Visited</div>
+                    <div class="stat-value" id="stat-avg-nodes">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Retries</div>
+                    <div class="stat-value" id="stat-retries">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Approvals/HITL</div>
+                    <div class="stat-value" id="stat-approvals">0</div>
+                </div>
+            </div>
+
+            <!-- Visualization graph container -->
+            <div class="board">
+                <div class="board-header">
+                    <div class="board-title" id="active-case-title">No Case Selected</div>
+                    <div class="playback-controls">
+                        <button class="playback-btn" id="playback-start" title="First step">&lt;&lt;</button>
+                        <button class="playback-btn" id="playback-prev" title="Previous step">&lt;</button>
+                        <span class="step-label" id="playback-label">Step 0 of 0</span>
+                        <button class="playback-btn" id="playback-next" title="Next step">&gt;</button>
+                        <button class="playback-btn" id="playback-end" title="Last step">&gt;&gt;</button>
+                    </div>
+                </div>
+
+                <div class="graph-container" id="graph-container">
+                    <svg class="svg-canvas" id="svg-canvas">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="currentColor" />
+                            </marker>
+                        </defs>
+                        <!-- Lines drawn dynamically -->
+                    </svg>
+
+                    <!-- Nodes drawn at precise spatial coordinates -->
+                    <div class="node start-node" id="node-START" style="left: 40px; top: 100px;">START</div>
+                    <div class="node" id="node-intake" style="left: 150px; top: 100px;">intake</div>
+                    <div class="node" id="node-classify" style="left: 280px; top: 100px;">classify</div>
+                    
+                    <div class="node" id="node-answer" style="left: 470px; top: 30px;">answer</div>
+                    <div class="node" id="node-clarify" style="left: 470px; top: 170px;">clarify</div>
+                    
+                    <div class="node" id="node-risky_action" style="left: 280px; top: 240px;">risky_action</div>
+                    <div class="node" id="node-approval" style="left: 280px; top: 360px;">approval</div>
+                    
+                    <div class="node" id="node-tool" style="left: 470px; top: 360px;">tool</div>
+                    <div class="node" id="node-evaluate" style="left: 660px; top: 360px;">evaluate</div>
+                    
+                    <div class="node" id="node-retry" style="left: 470px; top: 240px;">retry</div>
+                    <div class="node" id="node-dead_letter" style="left: 660px; top: 240px;">dead_letter</div>
+                    
+                    <div class="node" id="node-finalize" style="left: 850px; top: 100px;">finalize</div>
+                    <div class="node" id="node-END" style="left: 980px; top: 100px;">END</div>
+                </div>
+            </div>
+
+            <!-- Inspector Panel -->
+            <div class="inspector-panel">
+                <div class="inspector-title">
+                    <span>Case Execution details</span>
+                    <span id="inspect-status" class="badge">n/a</span>
+                </div>
+                <div class="inspector-content">
+                    <div class="info-group">
+                        <div class="info-label">Expected vs Actual Route</div>
+                        <div class="info-value" id="inspect-routes">Select a scenario to view...</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Step Sequence History</div>
+                        <div class="info-value" id="inspect-steps">-</div>
+                    </div>
+                    <div class="info-group">
+                        <div class="info-label">Errors Encountered</div>
+                        <div class="info-value" id="inspect-errors">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fallback default data embedded from outputs/metrics.json
+        const defaultMetrics = {
+  "total_scenarios": 7,
+  "success_rate": 1.0,
+  "avg_nodes_visited": 6.428571428571429,
+  "total_retries": 3,
+  "total_interrupts": 2,
+  "resume_success": false,
+  "scenario_metrics": [
+    {
+      "scenario_id": "S01_simple",
+      "success": true,
+      "expected_route": "simple",
+      "actual_route": "simple",
+      "nodes_visited": 4,
+      "retry_count": 0,
+      "interrupt_count": 0,
+      "approval_required": false,
+      "approval_observed": false,
+      "latency_ms": 0,
+      "errors": [],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "answer",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S02_tool",
+      "success": true,
+      "expected_route": "tool",
+      "actual_route": "tool",
+      "nodes_visited": 6,
+      "retry_count": 0,
+      "interrupt_count": 0,
+      "approval_required": false,
+      "approval_observed": false,
+      "latency_ms": 0,
+      "errors": [],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "tool",
+        "evaluate",
+        "answer",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S03_missing",
+      "success": true,
+      "expected_route": "missing_info",
+      "actual_route": "missing_info",
+      "nodes_visited": 4,
+      "retry_count": 0,
+      "interrupt_count": 0,
+      "approval_required": false,
+      "approval_observed": false,
+      "latency_ms": 0,
+      "errors": [],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "clarify",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S04_risky",
+      "success": true,
+      "expected_route": "risky",
+      "actual_route": "risky",
+      "nodes_visited": 8,
+      "retry_count": 0,
+      "interrupt_count": 1,
+      "approval_required": true,
+      "approval_observed": true,
+      "latency_ms": 0,
+      "errors": [],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "risky_action",
+        "approval",
+        "tool",
+        "evaluate",
+        "answer",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S05_error",
+      "success": true,
+      "expected_route": "error",
+      "actual_route": "error",
+      "nodes_visited": 10,
+      "retry_count": 2,
+      "interrupt_count": 0,
+      "approval_required": false,
+      "approval_observed": false,
+      "latency_ms": 0,
+      "errors": [
+        "Attempt 1 failed. Retrying...",
+        "Attempt 2 failed. Retrying..."
+      ],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "retry",
+        "tool",
+        "evaluate",
+        "retry",
+        "tool",
+        "evaluate",
+        "answer",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S06_delete",
+      "success": true,
+      "expected_route": "risky",
+      "actual_route": "risky",
+      "nodes_visited": 8,
+      "retry_count": 0,
+      "interrupt_count": 1,
+      "approval_required": true,
+      "approval_observed": true,
+      "latency_ms": 0,
+      "errors": [],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "risky_action",
+        "approval",
+        "tool",
+        "evaluate",
+        "answer",
+        "finalize"
+      ]
+    },
+    {
+      "scenario_id": "S07_dead_letter",
+      "success": true,
+      "expected_route": "error",
+      "actual_route": "error",
+      "nodes_visited": 5,
+      "retry_count": 1,
+      "interrupt_count": 0,
+      "approval_required": false,
+      "approval_observed": false,
+      "latency_ms": 0,
+      "errors": [
+        "Attempt 1 failed. Retrying..."
+      ],
+      "nodes_list": [
+        "intake",
+        "classify",
+        "retry",
+        "dead_letter",
+        "finalize"
+      ]
+    }
+  ]
+};
+
+        let currentData = defaultMetrics;
+        let selectedCaseIndex = null;
+        let currentStepIndex = 0; // 0 represents the start node, 1 is the first node in path...
+        let completePath = [];
+
+        // Define graph layout map for drawing connections
+        const nodesInfo = {
+            "START": { x: 75, y: 122 },
+            "intake": { x: 200, y: 122 },
+            "classify": { x: 330, y: 122 },
+            "answer": { x: 520, y: 52 },
+            "clarify": { x: 520, y: 192 },
+            "risky_action": { x: 330, y: 262 },
+            "approval": { x: 330, y: 382 },
+            "tool": { x: 520, y: 382 },
+            "evaluate": { x: 710, y: 382 },
+            "retry": { x: 520, y: 262 },
+            "dead_letter": { x: 710, y: 262 },
+            "finalize": { x: 900, y: 122 },
+            "END": { x: 1015, y: 122 }
+        };
+
+        // Static edges list representing all possible routing configurations
+        const staticEdges = [
+            ["START", "intake"],
+            ["intake", "classify"],
+            ["classify", "answer"],
+            ["classify", "clarify"],
+            ["classify", "risky_action"],
+            ["classify", "retry"],
+            ["risky_action", "approval"],
+            ["approval", "tool"],
+            ["approval", "clarify"],
+            ["tool", "evaluate"],
+            ["evaluate", "answer"],
+            ["evaluate", "retry"],
+            ["retry", "tool"],
+            ["retry", "dead_letter"],
+            ["dead_letter", "finalize"],
+            ["answer", "finalize"],
+            ["clarify", "finalize"],
+            ["finalize", "END"]
+        ];
+
+        // Bootstrapping
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
+        function initApp() {
+            // Theme setup
+            const themeBtn = document.getElementById('theme-toggle');
+            themeBtn.addEventListener('click', () => {
+                document.body.classList.toggle('light-mode');
+            });
+
+            // Drag and drop events
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files));
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFileSelect(e.dataTransfer.files);
+            });
+
+            // Playback controls
+            document.getElementById('playback-start').addEventListener('click', () => setStep(0));
+            document.getElementById('playback-prev').addEventListener('click', () => setStep(currentStepIndex - 1));
+            document.getElementById('playback-next').addEventListener('click', () => setStep(currentStepIndex + 1));
+            document.getElementById('playback-end').addEventListener('click', () => setStep(completePath.length - 1));
+
+            // Draw baseline static graph edges
+            drawStaticEdges();
+
+            // Load original data
+            renderDashboard(currentData);
+
+            // Auto-select first case
+            if (currentData.scenario_metrics && currentData.scenario_metrics.length > 0) {
+                selectCase(0);
+            }
+        }
+
+        function handleFileSelect(files) {
+            if (files.length === 0) return;
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (!parsed.scenario_metrics) {
+                        alert("Invalid metrics.json format. Missing scenario_metrics.");
+                        return;
+                    }
+                    currentData = parsed;
+                    renderDashboard(currentData);
+                    selectCase(0);
+                } catch (err) {
+                    alert("Failed to parse JSON file: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function renderDashboard(data) {
+            // Update stats UI
+            document.getElementById('stat-total').textContent = data.total_scenarios;
+            document.getElementById('stat-rate').textContent = (data.success_rate * 100).toFixed(1) + '%';
+            document.getElementById('stat-avg-nodes').textContent = data.avg_nodes_visited.toFixed(1);
+            document.getElementById('stat-retries').textContent = data.total_retries;
+            document.getElementById('stat-approvals').textContent = data.total_interrupts;
+
+            // Generate sidebar items
+            const caseList = document.getElementById('case-list');
+            caseList.innerHTML = '';
+
+            data.scenario_metrics.forEach((item, index) => {
+                const isSuccess = item.success;
+                const activeClass = index === selectedCaseIndex ? 'active' : '';
+
+                const caseItem = document.createElement('div');
+                caseItem.className = `case-item ${activeClass}`;
+                caseItem.innerHTML = `
+                    <div class="case-header">
+                        <span class="case-id">${item.scenario_id}</span>
+                        <span class="badge ${isSuccess ? 'badge-success' : 'badge-failed'}">
+                            ${isSuccess ? 'Passed' : 'Failed'}
+                        </span>
+                    </div>
+                    <div class="case-query">Route: ${item.expected_route}</div>
+                    <div class="case-route-info">
+                        <span>Steps: ${item.nodes_visited}</span>
+                        <span>Retries: ${item.retry_count}</span>
+                        <span>HITL: ${item.interrupt_count}</span>
+                    </div>
+                `;
+                caseItem.addEventListener('click', () => selectCase(index));
+                caseList.appendChild(caseItem);
+            });
+        }
+
+        function selectCase(index) {
+            selectedCaseIndex = index;
+            
+            // Highlight selected item in sidebar list
+            const items = document.querySelectorAll('.case-item');
+            items.forEach((item, i) => {
+                if (i === index) item.classList.add('active');
+                else item.classList.remove('active');
+            });
+
+            const metric = currentData.scenario_metrics[index];
+            document.getElementById('active-case-title').textContent = `${metric.scenario_id} Execution Trace`;
+
+            // Prepare absolute path including start and end
+            const rawList = metric.nodes_list || [];
+            completePath = ["START", ...rawList, "END"];
+
+            // Load details inspector
+            const statusBadge = document.getElementById('inspect-status');
+            statusBadge.textContent = metric.success ? 'Success' : 'Failed';
+            statusBadge.className = `badge ${metric.success ? 'badge-success' : 'badge-failed'}`;
+
+            document.getElementById('inspect-routes').innerHTML = `
+                Expected: <strong>${metric.expected_route}</strong><br>
+                Actual: <strong>${metric.actual_route || 'n/a'}</strong>
+            `;
+
+            document.getElementById('inspect-steps').innerHTML = completePath.map((node, i) => 
+                `<span style="color: ${i === 0 ? '#60a5fa' : i === completePath.length - 1 ? '#f472b6' : 'inherit'}">${node}</span>`
+            ).join(' &rarr; ');
+
+            const errorsContainer = document.getElementById('inspect-errors');
+            if (metric.errors && metric.errors.length > 0) {
+                errorsContainer.innerHTML = `<div class="error-log">${metric.errors.join('<br>')}</div>`;
+            } else {
+                errorsContainer.textContent = 'None';
+            }
+
+            // Start playback from step 0
+            setStep(0);
+        }
+
+        function drawStaticEdges() {
+            const svgCanvas = document.getElementById('svg-canvas');
+            // Remove previous lines
+            const existingLines = svgCanvas.querySelectorAll('.connection-line');
+            existingLines.forEach(line => line.remove());
+
+            staticEdges.forEach(([from, to]) => {
+                const start = nodesInfo[from];
+                const end = nodesInfo[to];
+                if (!start || !end) return;
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const pathStr = drawSmartCurve(start.x, start.y, end.x, end.y, from, to);
+                line.setAttribute("d", pathStr);
+                line.setAttribute("class", "connection-line");
+                line.setAttribute("id", `edge-${from}-${to}`);
+                line.setAttribute("marker-end", "url(#arrow)");
+                svgCanvas.appendChild(line);
+            });
+        }
+
+        // Generate curved lines for natural routing layout
+        function drawSmartCurve(x1, y1, x2, y2, from, to) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+
+            if (dy === 0) {
+                // Flat horizontal connection
+                return `M ${x1} ${y1} L ${x2} ${y2}`;
+            }
+            if (dx === 0) {
+                // Flat vertical connection
+                return `M ${x1} ${y1} L ${x2} ${y2}`;
+            }
+
+            // Curve offsets based on direction
+            const midX = x1 + dx * 0.5;
+            const midY = y1 + dy * 0.5;
+            return `M ${x1} ${y1} Q ${midX} ${y1 + dy * 0.15} ${x2} ${y2}`;
+        }
+
+        function setStep(stepIndex) {
+            if (stepIndex < 0 || stepIndex >= completePath.length) return;
+            currentStepIndex = stepIndex;
+
+            // Configure control button states
+            document.getElementById('playback-start').disabled = currentStepIndex === 0;
+            document.getElementById('playback-prev').disabled = currentStepIndex === 0;
+            document.getElementById('playback-next').disabled = currentStepIndex === completePath.length - 1;
+            document.getElementById('playback-end').disabled = currentStepIndex === completePath.length - 1;
+
+            document.getElementById('playback-label').textContent = `Step ${currentStepIndex + 1} of ${completePath.length}`;
+
+            // Clean state classes from nodes
+            const allNodeEls = document.querySelectorAll('.node');
+            allNodeEls.forEach(el => {
+                el.classList.remove('active', 'highlighted');
+                // Remove existing node step indicators
+                const badge = el.querySelector('.node-step-badge');
+                if (badge) badge.remove();
+            });
+
+            // Clean line classes
+            const allLineEls = document.querySelectorAll('.connection-line');
+            allLineEls.forEach(el => {
+                el.classList.remove('active-path', 'future-path');
+            });
+
+            // Mark nodes visited BEFORE or AT current step
+            for (let i = 0; i <= currentStepIndex; i++) {
+                const nodeName = completePath[i];
+                const nodeEl = document.getElementById(`node-${nodeName}`);
+                if (nodeEl) {
+                    if (i === currentStepIndex) {
+                        nodeEl.classList.add('active');
+                    } else {
+                        nodeEl.classList.add('highlighted');
+                    }
+
+                    // Add order badge (only for standard path nodes to avoid clutter, showing loop cycles)
+                    const countBadge = document.createElement('div');
+                    countBadge.className = 'node-step-badge';
+                    countBadge.textContent = i + 1;
+                    nodeEl.appendChild(countBadge);
+                }
+            }
+
+            // Highlight path connection lines up to current index
+            for (let i = 0; i < currentStepIndex; i++) {
+                const from = completePath[i];
+                const to = completePath[i + 1];
+                const edgeEl = document.getElementById(`edge-${from}-${to}`);
+                if (edgeEl) {
+                    edgeEl.classList.add('active-path');
+                }
+            }
+
+            // Outline next upcoming path step (if any) as a dotted suggestion
+            if (currentStepIndex < completePath.length - 1) {
+                const nextFrom = completePath[currentStepIndex];
+                const nextTo = completePath[currentStepIndex + 1];
+                const nextEdgeEl = document.getElementById(`edge-${nextFrom}-${nextTo}`);
+                if (nextEdgeEl) {
+                    nextEdgeEl.classList.add('future-path');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
